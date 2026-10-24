@@ -290,6 +290,7 @@ html,body{
   function stopAudio(){
     audioSequenceId++;
     if(currentAudio){
+      currentAudio.onplaying = null;
       currentAudio.onended = null;
       currentAudio.onerror = null;
       currentAudio.pause();
