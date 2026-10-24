@@ -311,8 +311,9 @@ html,body{
     }
 
     var finished = false;
+    var thisAudio = new Audio(file);
 
-    currentAudio = new Audio(file);
+    currentAudio = thisAudio;
 
     function finishAudio(errorMessage, error){
         if(finished){
@@ -322,26 +323,37 @@ html,body{
         finished = true;
 
         if(errorMessage){
-            console.log(errorMessage, file, error || '');
+            console.log(
+                errorMessage,
+                file,
+                error || ''
+            );
         }
 
-        currentAudio = null;
+        if(currentAudio === thisAudio){
+            currentAudio = null;
+        }
 
         if(onEndedCb){
             onEndedCb();
         }
     }
 
-    currentAudio.onended = function(){
+    thisAudio.onended = function(){
         finishAudio();
     };
 
-    currentAudio.onerror = function(){
-        finishAudio('無法載入音訊檔案：');
+    thisAudio.onerror = function(){
+        finishAudio(
+            '無法載入音訊檔案：'
+        );
     };
 
-    currentAudio.play().catch(function(error){
-        finishAudio('播放被阻擋或出錯：', error);
+    thisAudio.play().catch(function(error){
+        finishAudio(
+            '播放被阻擋或出錯：',
+            error
+        );
     });
 }
 
@@ -394,7 +406,12 @@ var sequenceQuestionIndex = currentIndex;
         if(clipFinished) return;
         clipFinished = true;
 
-        if(mySequenceId !== audioSequenceId) return;
+       if(
+    mySequenceId !== audioSequenceId ||
+    sequenceQuestionIndex !== currentIndex
+){
+    return;
+}
 
         if(errorMessage){
           console.log(errorMessage, file);
@@ -405,10 +422,13 @@ var sequenceQuestionIndex = currentIndex;
         index++;
 
         setTimeout(function(){
-          if(mySequenceId === audioSequenceId){
-            next();
-          }
-        }, 300);
+    if(
+        mySequenceId === audioSequenceId &&
+        sequenceQuestionIndex === currentIndex
+    ){
+        next();
+    }
+}, 300);
       }
 
       currentAudio.onended = function(){
@@ -428,18 +448,28 @@ var sequenceQuestionIndex = currentIndex;
     next();
   }
 
-  function playQuestionAudio(){
-    if(currentIndex < 0 || currentIndex >= questions.length) return;
+function playQuestionAudio(){
+    if(
+        currentIndex < 0 ||
+        currentIndex >= questions.length
+    ){
+        return;
+    }
 
     var qNo = currentIndex + 1;
     var files = [];
 
-// GitHub root files: q1.mp3, agree.mp3 and disagree.mp3    files.push('q' + qNo + '.mp3');
+    // Question audio, for example q1.mp3
+    files.push(
+        'q' + qNo + '.mp3'
+    );
+
+    // Answer audio
     files.push('agree.mp3');
     files.push('disagree.mp3');
 
     playAudioSequence(files);
-  }
+}
 
   /* ═══════════════════ DOM REFS ═══════════════════ */
   var elOverlay      = document.getElementById('speech-overlay');
@@ -460,16 +490,22 @@ var elExplainListen= document.getElementById('explain-listen-btn');
   var elResultScore  = document.getElementById('result-scores');
   var elRestart      = document.getElementById('restart-btn');
 
-  function openExplanation(){
+ function openExplanation(){
     stopInactivityTimer();
     clearAllGlow();
+
     explanationOpen = true;
+
     elExplainPanel.style.display = 'block';
     elExplainBtn.classList.add('active');
 
     var qNo = currentIndex + 1;
-// GitHub root file example: q1 explain.mp3    playAudio('q' + qNo + ' explain.mp3');
-  }
+
+    // Explanation audio, for example q1 explain.mp3
+    playAudio(
+        'q' + qNo + ' explain.mp3'
+    );
+}
 
   function closeExplanation(){
     explanationOpen = false;
@@ -591,29 +627,35 @@ elProgressBar.style.width =
   function showResult(){
     stopInactivityTimer();
     stopAudio();
+    clearAllGlow();
+
     elQuiz.style.display = 'none';
     elResult.style.display = 'block';
 
     var totalScore = 0;
+
     for(var key in answers){
-      if(answers.hasOwnProperty(key)){
-        totalScore += (answers[key] || 0);
-      }
+        if(answers.hasOwnProperty(key)){
+            totalScore += answers[key] || 0;
+        }
     }
 
     elResultMsg.textContent =
-      '非常感謝您完成了這份調查中所有的問題。' +
-      '請勿關閉此頁面，並告知您的物理治療師。';
+        '非常感謝您完成了這份調查中所有的問題。' +
+        '請勿關閉此頁面，並告知您的物理治療師。';
 
     elResultScore.innerHTML =
-     '<span>總得分: ' +
-totalScore +
-' / ' +
-questions.length +
-'</span>'
+        '<span>總得分: ' +
+        totalScore +
+        ' / ' +
+        questions.length +
+        ' 分</span>';
 
     window.scrollTo(0, 0);
-  }
+
+    // result.mp3 must be beside index.html
+    playAudio('result.mp3');
+}
 
  function restart(){
     stopInactivityTimer();
@@ -634,11 +676,14 @@ questions.length +
       toggleExplanation();
     });
     elExplainListen.addEventListener('click', function(){
-      stopInactivityTimer();
-      var qNo = currentIndex + 1;
-      // 根據你的 GitHub 根目錄結構：q1 explain.mp3[cite: 12]
-      playAudio('q' + qNo + ' explain.mp3');
-    });
+    stopInactivityTimer();
+
+    var qNo = currentIndex + 1;
+
+    playAudio(
+        'q' + qNo + ' explain.mp3'
+    );
+});
     elRestart.addEventListener('click', restart);
   }
 
@@ -649,12 +694,20 @@ questions.length +
   }
 
   function startQuiz(){
+    stopInactivityTimer();
+    stopAudio();
+    clearAllGlow();
+
     currentIndex = 0;
     answers = {};
+    locked = false;
+    explanationOpen = false;
+
     elResult.style.display = 'none';
     elQuiz.style.display = 'flex';
+
     renderQuestion();
-  }
+}
 
   init();
 })();
