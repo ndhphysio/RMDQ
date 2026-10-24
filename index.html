@@ -357,96 +357,144 @@ html,body{
     });
 }
 
-  function playAudioSequence(files){
+function playAudioSequence(files){
     stopAudio();
     stopInactivityTimer();
 
-    if(!audioEnabled) return;
+    if(!audioEnabled){
+        return;
+    }
 
     var index = 0;
-var mySequenceId = audioSequenceId;
-var sequenceQuestionIndex = currentIndex;
-    
-    function next(){
-     if(
-    mySequenceId !== audioSequenceId ||
-    sequenceQuestionIndex !== currentIndex
-){
-    return;
-}
-      if(locked || explanationOpen){
-        clearAllGlow();
-        return;
-      }
+    var mySequenceId = audioSequenceId;
+    var sequenceQuestionIndex = currentIndex;
 
-      if(index >= files.length){
-        clearAllGlow();
-        currentAudio = null;
-        startInactivityTimer();
-        return;
-      }
-
-      clearAllGlow();
-
-      // index 0: 題目, index 1: 同意 (agree.mp3), index 2: 不同意 (disagree.mp3)
-      if(index > 0){
-        var answerBtns = document.querySelectorAll('.answer-btn');
-        var btnIndex = index - 1;
-        if(answerBtns[btnIndex]){
-          answerBtns[btnIndex].classList.add('glow');
-        }
-      }
-
-      var file = files[index];
-      var clipFinished = false;
-
-      currentAudio = new Audio(file);
-
-      function finishClip(errorMessage){
-        if(clipFinished) return;
-        clipFinished = true;
-
-       if(
-    mySequenceId !== audioSequenceId ||
-    sequenceQuestionIndex !== currentIndex
-){
-    return;
-}
-
-        if(errorMessage){
-          console.log(errorMessage, file);
-        }
-
-        clearAllGlow();
-        currentAudio = null;
-        index++;
-
-        setTimeout(function(){
-    if(
-        mySequenceId === audioSequenceId &&
-        sequenceQuestionIndex === currentIndex
-    ){
-        next();
+    function sequenceIsCurrent(){
+        return (
+            mySequenceId === audioSequenceId &&
+            sequenceQuestionIndex === currentIndex &&
+            !locked &&
+            !explanationOpen
+        );
     }
-}, 300);
-      }
 
-      currentAudio.onended = function(){
-        finishClip();
-      };
+    function next(){
+        if(!sequenceIsCurrent()){
+            clearAllGlow();
+            return;
+        }
 
-      currentAudio.onerror = function(){
-        finishClip('Missing audio:');
-      };
+        if(index >= files.length){
+            clearAllGlow();
+            currentAudio = null;
 
-      currentAudio.play().catch(function(error){
-        console.log('Playback error:', file, error);
-        finishClip('Unable to play audio:');
-      });
+            // Start the 20-second timer only after all audio finishes.
+            startInactivityTimer();
+            return;
+        }
+
+        clearAllGlow();
+
+        var file = files[index];
+        var itemIndex = index;
+        var clipFinished = false;
+        var thisAudio = new Audio(file);
+
+        currentAudio = thisAudio;
+
+        console.log(
+            'Loading audio:',
+            itemIndex,
+            file
+        );
+
+        /*
+         * Add the glow only when the audio has genuinely begun playing.
+         *
+         * itemIndex 0 = question, no answer-button glow
+         * itemIndex 1 = agree button
+         * itemIndex 2 = disagree button
+         */
+        thisAudio.onplaying = function(){
+            if(!sequenceIsCurrent()){
+                return;
+            }
+
+            clearAllGlow();
+
+            if(itemIndex > 0){
+                var answerBtns =
+                    elAnswers.querySelectorAll('.answer-btn');
+
+                var buttonIndex = itemIndex - 1;
+
+                if(answerBtns[buttonIndex]){
+                    answerBtns[buttonIndex]
+                        .classList.add('glow');
+                }
+            }
+
+            console.log(
+                'Playing audio:',
+                itemIndex,
+                file
+            );
+        };
+
+        function finishClip(errorMessage, error){
+            if(clipFinished){
+                return;
+            }
+
+            clipFinished = true;
+
+            if(!sequenceIsCurrent()){
+                return;
+            }
+
+            if(errorMessage){
+                console.log(
+                    errorMessage,
+                    file,
+                    error || ''
+                );
+            }
+
+            clearAllGlow();
+
+            if(currentAudio === thisAudio){
+                currentAudio = null;
+            }
+
+            index++;
+
+            setTimeout(function(){
+                if(sequenceIsCurrent()){
+                    next();
+                }
+            }, 300);
+        }
+
+        thisAudio.onended = function(){
+            finishClip();
+        };
+
+        thisAudio.onerror = function(){
+            finishClip(
+                'Missing or invalid audio:'
+            );
+        };
+
+        thisAudio.play().catch(function(error){
+            finishClip(
+                'Unable to play audio:',
+                error
+            );
+        });
     }
 
     next();
-  }
+}
 
 function playQuestionAudio(){
     if(
@@ -457,16 +505,17 @@ function playQuestionAudio(){
     }
 
     var qNo = currentIndex + 1;
-    var files = [];
 
-    // Question audio, for example q1.mp3
-    files.push(
-        'q' + qNo + '.mp3'
+    var files = [
+        'q' + qNo + '.mp3',
+        'agree.mp3',
+        'disagree.mp3'
+    ];
+
+    console.log(
+        'Question audio sequence:',
+        files
     );
-
-    // Answer audio
-    files.push('agree.mp3');
-    files.push('disagree.mp3');
 
     playAudioSequence(files);
 }
@@ -668,10 +717,14 @@ elProgressBar.style.width =
     elOverlay.addEventListener('click', onOverlayTap);
     elPrevBtn.addEventListener('click', prevQuestion);
     elReplay.addEventListener('click', function(){
-      stopInactivityTimer();
-      closeExplanation();
-      playQuestionAudio();
-    });
+    stopInactivityTimer();
+    closeExplanation();
+    stopAudio();
+
+    setTimeout(function(){
+        playQuestionAudio();
+    }, 100);
+});
     elExplainBtn.addEventListener('click', function(){
       toggleExplanation();
     });
